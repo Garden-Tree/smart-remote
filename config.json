@@ -3,7 +3,9 @@
         "broker": "localhost",
         "port": 1883,
         "topic": "smart-remote/command",
-        "client_id": "raspberry-pi-ir-remote"
+        "client_id": "raspberry-pi-ir-remote",
+        "username": "",
+        "password": ""
     },
     "gpio": {
         "ir_send": 17,
