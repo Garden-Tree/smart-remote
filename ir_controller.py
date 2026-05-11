@@ -39,13 +39,13 @@ def run_irrp(mode, name):
         print(f"Error running irrp.py: {e}")
 
 # MQTT Callbacks
-def on_connect(client, userdata, flags, rc):
-    if rc == 0:
+def on_connect(client, userdata, flags, reason_code, properties):
+    if reason_code == 0:
         print("Connected to MQTT Broker!")
         client.subscribe(CONFIG['mqtt']['topic'])
         client.subscribe(CONFIG['mqtt']['topic'] + "/record")
     else:
-        print(f"Failed to connect, return code {rc}")
+        print(f"Failed to connect, return code {reason_code}")
 
 def on_message(client, userdata, msg):
     try:
@@ -62,7 +62,7 @@ def on_message(client, userdata, msg):
         print(f"Error handling message: {e}")
 
 # Main loop
-client = mqtt.Client(client_id=CONFIG['mqtt']['client_id'])
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=CONFIG['mqtt']['client_id'])
 client.on_connect = on_connect
 client.on_message = on_message
 
