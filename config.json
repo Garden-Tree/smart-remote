@@ -1,0 +1,17 @@
+{
+    "mqtt": {
+        "broker": "localhost",
+        "port": 1883,
+        "topic": "smart-remote/command",
+        "client_id": "raspberry-pi-ir-remote"
+    },
+    "gpio": {
+        "ir_send": 17,
+        "ir_receive": 18
+    },
+    "ir": {
+        "frequency": 38000,
+        "gap_ms": 100,
+        "tolerance": 0.2
+    }
+}
