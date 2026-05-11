@@ -1,12 +1,11 @@
-# Raspberry Pi Smart IR Remote (MQTT + pigpio)
+# Raspberry Pi Smart IR Remote (MQTT + irrp.py)
 
-MQTT経由で赤外線リモコン信号を送信するシステムです。
+MQTT経由で赤外線リモコン信号を送信・学習するシステムです。
+赤外線処理のコアには、pigpio作者による信頼性の高い `irrp.py` を使用しています。
 
 ## セットアップ
 
 ### 1. 依存関係のインストール (Raspberry Pi上)
-
-まず、`pigpio` デーモンをインストールして起動します。
 
 ```bash
 sudo apt update
@@ -23,44 +22,51 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. 設定の確認
-
-`config.json` を開き、以下の項目を環境に合わせて変更してください。
-- `mqtt.broker`: MQTTブローカーのIPアドレス
-- `gpio.ir_send`: 赤外線LEDを接続したGPIOピン
-- `gpio.ir_receive`: 赤外線受信モジュールを接続したGPIOピン
-
 ## 使い方
 
-### 1. リモコン信号を学習する
+### 1. 直接実行（テスト用）
 
-リモコンのボタン信号を `codes.json` に保存します。
+`irrp.py` を直接叩くか、簡易的なラッパースクリプトを使用できます。
 
+**学習する:**
 ```bash
-# 例: "tv_power" という名前で学習
 python ir_recorder.py tv_power
+# または直接
+python irrp.py -r -g 18 -f codes.json tv_power
 ```
 
-画面の指示に従い、受信モジュールに向けてリモコンのボタンを押してください。
+**送信する:**
+```bash
+python ir_sender.py tv_power
+# または直接
+python irrp.py -p -g 17 -f codes.json tv_power
+```
 
-### 2. コントローラーを起動する
+### 2. MQTT経由での実行
 
-MQTTブローカーからの指示を待ち受けます。
+MQTTブローカーからの指示を待ち受けるブリッジプログラムを起動します。
 
 ```bash
 python ir_controller.py
 ```
 
-### 3. 赤外線信号を送信する
-
-他のデバイスやPCからMQTTメッセージを送信して操作します。
-
+**MQTTで送信:**
+トピック `smart-remote/command` にボタン名を送信します。
 ```bash
-# 例: mosquitto_pub を使用して tv_power を送信
-mosquitto_pub -h localhost -t smart-remote/command -m "tv_power"
+mosquitto_pub -t smart-remote/command -m "tv_power"
 ```
 
-## 注意点
+**MQTTで学習:**
+トピック `smart-remote/command/record` にボタン名を送信すると、Pi側で学習モード（LED待機状態）に入ります。
+```bash
+mosquitto_pub -t smart-remote/command/record -m "new_button"
+```
 
-- **ハードウェア**: 赤外線LEDはGPIOピンから直接駆動せず、トランジスタ（2N2222等）を介して接続することを推奨します。
-- **搬送波**: `ir_controller.py` はソフトウェアで38kHzの搬送波を生成しています。
+## プログラム構成
+
+- `irrp.py`: 赤外線制御のメインスクリプト（pigpio公式例）。
+- `ir_recorder.py`: `irrp.py` を呼び出す学習用ラッパー。
+- `ir_sender.py`: `irrp.py` を呼び出す送信用ラッパー。
+- `ir_controller.py`: MQTTメッセージを解釈して `irrp.py` を実行するブリッジ。
+- `config.json`: GPIOピンやMQTTの接続設定。
+- `codes.json`: 学習した赤外線パルスのデータ。

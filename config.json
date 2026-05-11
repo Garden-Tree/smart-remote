@@ -12,6 +12,7 @@
     "ir": {
         "frequency": 38000,
         "gap_ms": 100,
-        "tolerance": 0.2
+        "glitch": 100,
+        "tolerance": 15
     }
 }

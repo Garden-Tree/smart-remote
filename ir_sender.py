@@ -4,7 +4,7 @@ import subprocess
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python ir_recorder.py <button_name>")
+        print("Usage: python ir_sender.py <button_name>")
         sys.exit(1)
     
     name = sys.argv[1]
@@ -12,17 +12,16 @@ def main():
     with open('config.json', 'r') as f:
         config = json.load(f)
     
-    gpio = config['gpio']['ir_receive']
+    gpio = config['gpio']['ir_send']
     filename = 'codes.json'
+    freq = config['ir'].get('frequency', 38000) / 1000.0
     
     cmd = [
         sys.executable, 'irrp.py',
-        '-r',
+        '-p',
         '-g', str(gpio),
         '-f', filename,
-        '--glitch', str(config['ir'].get('glitch', 100)),
-        '--post', str(config['ir'].get('gap_ms', 100)),
-        '--tolerance', str(config['ir'].get('tolerance', 15)),
+        '--freq', str(freq),
         name
     ]
     
