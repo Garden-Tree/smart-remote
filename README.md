@@ -1,7 +1,8 @@
-# Raspberry Pi Smart IR Remote (MQTT + irrp.py)
+# Raspberry Pi Smart IR Remote & Sensor (MQTT)
 
-MQTT経由で赤外線リモコン信号を送信・学習するシステムです。
-赤外線処理のコアには、pigpio作者による信頼性の高い `irrp.py` を使用しています。
+MQTT経由で赤外線リモコン信号を送信・学習するシステム、およびAM2302（DHT22）センサーを用いた温湿度計測システムです。
+赤外線処理のコアには信頼性の高い `irrp.py` を使用しています。
+
 
 ## セットアップ
 
@@ -62,11 +63,31 @@ mosquitto_pub -t smart-remote/command -m "tv_power"
 mosquitto_pub -t smart-remote/command/record -m "new_button"
 ```
 
+### 3. 温湿度センサーの実行
+
+AM2302センサーから定期的に温度と湿度を読み取り、MQTTへ送信するプログラムを起動します。
+
+```bash
+python sensor_publisher.py
+```
+
+指定した間隔（デフォルトは60秒）で、トピック `smart-remote/sensor` へ以下のようなJSONデータがパブリッシュされます。
+```json
+{
+  "temperature": 25.4,
+  "humidity": 60.1,
+  "timestamp": 1715520000
+}
+```
+
+
 ## プログラム構成
 
 - `irrp.py`: 赤外線制御のメインスクリプト（pigpio公式例）。
 - `ir_recorder.py`: `irrp.py` を呼び出す学習用ラッパー。
 - `ir_sender.py`: `irrp.py` を呼び出す送信用ラッパー。
 - `ir_controller.py`: MQTTメッセージを解釈して `irrp.py` を実行するブリッジ。
+- `sensor_publisher.py`: AM2302センサーから温湿度を取得してMQTTへ送信するパブリッシャー。
 - `config.json`: GPIOピンやMQTTの接続設定。
 - `codes.json`: 学習した赤外線パルスのデータ。
+

@@ -2,19 +2,24 @@
     "mqtt": {
         "broker": "localhost",
         "port": 1883,
-        "topic": "smart-remote/command",
+        "topic": "home/bedroom/ir_remote/command",
+        "sensor_topic": "home/bedroom/sensor/state",
         "client_id": "raspberry-pi-ir-remote",
         "username": "",
         "password": ""
     },
     "gpio": {
         "ir_send": 17,
-        "ir_receive": 18
+        "ir_receive": 18,
+        "sensor": 4
     },
     "ir": {
         "frequency": 38000,
         "gap_ms": 100,
         "glitch": 100,
         "tolerance": 15
+    },
+    "sensor": {
+        "interval": 60
     }
 }
