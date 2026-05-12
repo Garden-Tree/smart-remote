@@ -21,11 +21,6 @@ except AttributeError:
     print(f"無効なGPIOピン番号です: {sensor_pin_num}")
     sys.exit(1)
 
-# 【永続インスタンス方式】
-# 初回のみ計測に成功していた事実に基づき、インスタンスは起動時に1回だけ生成して維持します。
-# 毎回の生成・破棄によるOS側のGPIOリソース確保の遅延・オーバーヘッドを排除します。
-dht_device = adafruit_dht.DHT22(pin)
-
 # MQTTの設定
 mqtt_config = CONFIG['mqtt']
 broker = mqtt_config['broker']
@@ -56,11 +51,9 @@ interval = CONFIG.get('sensor', {}).get('interval', 60)
 print(f"計測を開始します。{interval}秒ごとに '{topic}' へパブリッシュします。")
 
 
-def read_sensor_with_retry(device, max_retries=10):
+def read_sensor_with_retry(device, max_retries=15):
     """
-    センサーからの読み取りを試行し、失敗した場合は規定回数しつこくリトライする関数。
-    Linux環境でのDHT系センサーはスケジューラの都合でパルスを逃しやすいため、
-    複数回アクセスを繰り返すことで成功率を大幅に高めます。
+    同一のインスタンスに対して、成功するまで執拗にアクセスを繰り返す関数。
     """
     for attempt in range(1, max_retries + 1):
         try:
@@ -69,9 +62,9 @@ def read_sensor_with_retry(device, max_retries=10):
             if temperature is not None and humidity is not None:
                 return temperature, humidity
         except RuntimeError as error:
-            print(f"  [試行 {attempt}/{max_retries}] 読み取り一時エラー: {error.args[0]}")
-            # 温湿度センサーマイコンの復帰に必要な時間(2.5秒以上)を確保して再試行
-            time.sleep(2.5)
+            # sys.stdout.write を使って進捗をコンパクトに表示
+            print(f"  [試行 {attempt}/{max_retries}] 一時エラー: {error.args[0]}")
+            time.sleep(2.0)
             continue
         except Exception as error:
             raise error
@@ -81,8 +74,13 @@ def read_sensor_with_retry(device, max_retries=10):
 
 try:
     while True:
-        print("\nセンサーデータを取得中...")
-        temperature, humidity = read_sensor_with_retry(dht_device)
+        print("\nセンサー接続を新規構築中...")
+        # 【ハイブリッド戦略】
+        # 1回目のループで「生成直後 ＋ 5回目の一執拗なリトライ」で完璧に成功した実績に基づき、
+        # 毎回のループ開始時にインスタンスを新規生成し、その同一インスタンスでディープ・リトライを回します。
+        dht_device = adafruit_dht.DHT22(pin)
+        
+        temperature, humidity = read_sensor_with_retry(dht_device, max_retries=15)
         
         if temperature is not None and humidity is not None:
             payload = {
@@ -96,7 +94,12 @@ try:
         else:
             print("規定回数リトライしましたが、データの取得に失敗しました。")
 
-        # インターバル待機 (リトライにかかった時間を考慮せずシンプルに待機)
+        # 放置による内部バッファの完全スタックを防ぐため、破棄してインターバルに入る
+        try:
+            dht_device.exit()
+        except Exception:
+            pass
+            
         time.sleep(interval)
 
 except KeyboardInterrupt:
@@ -104,4 +107,3 @@ except KeyboardInterrupt:
 finally:
     client.loop_stop()
     client.disconnect()
-    dht_device.exit()
