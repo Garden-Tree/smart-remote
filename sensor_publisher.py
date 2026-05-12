@@ -22,7 +22,11 @@ except AttributeError:
     sys.exit(1)
 
 # センサーの初期化
-dht_device = adafruit_dht.DHT22(pin)
+def init_sensor():
+    # Raspberry Pi環境で "A full buffer was not returned" エラーを防ぐため use_pulseio=False を指定
+    return adafruit_dht.DHT22(pin, use_pulseio=False)
+
+dht_device = init_sensor()
 
 # MQTTの設定
 mqtt_config = CONFIG['mqtt']
@@ -76,9 +80,14 @@ try:
 
         except RuntimeError as error:
             # 温湿度センサー(DHT系)はタイミングにシビアなため、頻繁に読み取りエラーが発生します。
-            # エラー時は少し待ってからリトライするのが一般的です。
-            print(f"読み取りエラー (自動リトライします): {error.args[0]}")
-            time.sleep(2.0)
+            # 内部バッファの詰まりによる連続エラーを防ぐため、デバイスを解放・再初期化して長めに待機します。
+            print(f"読み取りエラー (再初期化して3秒後にリトライします): {error.args[0]}")
+            time.sleep(3.0)
+            try:
+                dht_device.exit()
+            except Exception:
+                pass
+            dht_device = init_sensor()
             continue
         except Exception as error:
             dht_device.exit()
