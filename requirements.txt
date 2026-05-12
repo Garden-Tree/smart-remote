@@ -1,4 +1,3 @@
 paho-mqtt
 pigpio
-adafruit-circuitpython-dht
-RPi.GPIO
+pigpio-dht
