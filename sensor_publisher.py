@@ -21,22 +21,13 @@ except AttributeError:
     print(f"無効なGPIOピン番号です: {sensor_pin_num}")
     sys.exit(1)
 
-# センサーの初期化
-def init_sensor():
-    # Raspberry Pi環境で "A full buffer was not returned" エラーを防ぐため use_pulseio=False を指定
-    return adafruit_dht.DHT22(pin, use_pulseio=False)
-
-dht_device = init_sensor()
-
 # MQTTの設定
 mqtt_config = CONFIG['mqtt']
 broker = mqtt_config['broker']
 port = mqtt_config.get('port', 1883)
 topic = mqtt_config.get('sensor_topic', 'smart-remote/sensor')
 
-# ir_controller.py との Client ID 重複を避けるためにサフィックスを追加
 client_id = mqtt_config.get('client_id', 'raspberry-pi-ir-remote') + "-sensor"
-
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
 
 username = mqtt_config.get('username')
@@ -61,8 +52,13 @@ print(f"計測を開始します。{interval}秒ごとに '{topic}' へパブリ
 
 try:
     while True:
+        dht_device = None
         try:
-            # センサーから値を読み取る
+            # 【One-shot方式】
+            # 初回は成功していたため、デフォルトモードで毎回インスタンスを新規作成する。
+            # 計測直前に接続し、取得後は即座に破棄することで内部バッファの破損を防ぎます。
+            dht_device = adafruit_dht.DHT22(pin)
+            
             temperature = dht_device.temperature
             humidity = dht_device.humidity
             
@@ -75,29 +71,32 @@ try:
                 payload_json = json.dumps(payload)
                 client.publish(topic, payload_json)
                 print(f"送信完了: {payload_json}")
+                
+                # 成功した場合はデバイスを解放した状態で次のインターバルまで待機
+                if dht_device:
+                    dht_device.exit()
+                    dht_device = None
+                time.sleep(interval)
             else:
                 print("データの取得に失敗しました (値が None です)")
+                time.sleep(2.0)
 
         except RuntimeError as error:
-            # 温湿度センサー(DHT系)はタイミングにシビアなため、頻繁に読み取りエラーが発生します。
-            # 内部バッファの詰まりによる連続エラーを防ぐため、デバイスを解放・再初期化して長めに待機します。
-            print(f"読み取りエラー (再初期化して3秒後にリトライします): {error.args[0]}")
+            # 読み取りエラー時は少し待って再試行（ループの先頭で毎回フレッシュなインスタンスが作られる）
+            print(f"読み取りエラー (3秒後に再試行します): {error.args[0]}")
             time.sleep(3.0)
-            try:
-                dht_device.exit()
-            except Exception:
-                pass
-            dht_device = init_sensor()
-            continue
         except Exception as error:
-            dht_device.exit()
             raise error
-
-        time.sleep(interval)
+        finally:
+            # 成功・失敗に関わらず、ループの終わりで確実にデバイスを解放する
+            if dht_device:
+                try:
+                    dht_device.exit()
+                except Exception:
+                    pass
 
 except KeyboardInterrupt:
     print("終了します...")
 finally:
     client.loop_stop()
     client.disconnect()
-    dht_device.exit()
